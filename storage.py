@@ -4,7 +4,7 @@ import sys
 from safe_io import atomic_write, read_bytes
 
 MAX_BYTES = 2 * 1024 * 1024
-MAX_ENTRIES = 300
+MAX_ENTRIES = 500
 MAX_STDIN_BYTES = 64 * 1024
 
 
@@ -29,7 +29,7 @@ def key(entry):
 
 def validate_entries(values):
     if not isinstance(values, list) or len(values) > MAX_ENTRIES:
-        raise ValueError("Expected an array of at most 300 entries")
+        raise ValueError(f"Expected an array of at most {MAX_ENTRIES} entries")
     return values
 
 

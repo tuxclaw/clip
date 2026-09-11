@@ -297,47 +297,76 @@ Item {
                 required property var modelData
                 readonly property bool selected: index === root.selectedIndex
                 width: ListView.view.width
-                height: Style.space(70)
+                readonly property bool hasListPreview: !!entryRow.modelData.image || entryRow.modelData.chip === "image"
+                readonly property string listPreviewSource: entryRow.modelData.image || entryRow.modelData.path || ""
+                height: hasListPreview ? Style.space(82) : Style.space(70)
                 radius: Style.cornerRadius
                 color: selected ? root.selectedBackground : "transparent"
-                Column {
+                Row {
                   anchors.fill: parent
                   anchors.margins: Style.space(10)
-                  spacing: Style.space(5)
-                  Text {
-                    width: parent.width
-                    textFormat: Text.PlainText
-                    text: entryRow.modelData.title
-                    color: entryRow.selected ? root.selectedText : root.foreground
-                    font.family: root.fontFamily
-                    font.pixelSize: Style.font.title
-                    elide: Text.ElideRight
+                  spacing: entryRow.hasListPreview ? Style.space(10) : 0
+                  Rectangle {
+                    id: listThumbnail
+                    width: entryRow.hasListPreview ? Style.space(62) : 0
+                    height: Style.space(62)
+                    anchors.verticalCenter: parent.verticalCenter
+                    visible: entryRow.hasListPreview
+                    radius: Style.cornerRadius
+                    color: Util.alpha(entryRow.selected ? root.selectedText : root.foreground, 0.08)
+                    border.width: Style.normalBorderWidth
+                    border.color: Util.alpha(entryRow.selected ? root.selectedText : root.foreground, 0.28)
+                    clip: true
+                    Image {
+                      anchors.fill: parent
+                      anchors.margins: Style.space(3)
+                      source: entryRow.listPreviewSource ? Util.fileUrl(entryRow.listPreviewSource) : ""
+                      sourceSize.width: Math.max(1, width * 2)
+                      sourceSize.height: Math.max(1, height * 2)
+                      fillMode: Image.PreserveAspectCrop
+                      asynchronous: true
+                      smooth: true
+                    }
                   }
-                  Row {
-                    width: parent.width
-                    spacing: Style.space(8)
-                    Rectangle {
-                      width: chipLabel.implicitWidth + Style.space(12)
-                      height: chipLabel.implicitHeight + Style.space(2)
-                      radius: Style.cornerRadius
-                      color: Util.alpha(entryRow.selected ? root.selectedText : root.foreground, 0.1)
+                  Column {
+                    width: parent.width - listThumbnail.width - parent.spacing
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: Style.space(5)
+                    Text {
+                      width: parent.width
+                      textFormat: Text.PlainText
+                      text: entryRow.modelData.title
+                      color: entryRow.selected ? root.selectedText : root.foreground
+                      font.family: root.fontFamily
+                      font.pixelSize: Style.font.title
+                      elide: Text.ElideRight
+                    }
+                    Row {
+                      width: parent.width
+                      spacing: Style.space(8)
+                      Rectangle {
+                        width: chipLabel.implicitWidth + Style.space(12)
+                        height: chipLabel.implicitHeight + Style.space(2)
+                        radius: Style.cornerRadius
+                        color: Util.alpha(entryRow.selected ? root.selectedText : root.foreground, 0.1)
+                        Text {
+                          id: chipLabel
+                          anchors.centerIn: parent
+                          text: entryRow.modelData.chip
+                          color: entryRow.selected ? root.selectedText : root.foreground
+                          font.family: root.fontFamily
+                          font.pixelSize: Style.font.caption
+                        }
+                      }
                       Text {
-                        id: chipLabel
-                        anchors.centerIn: parent
-                        text: entryRow.modelData.chip
+                        width: parent.width - x
+                        text: (entryRow.modelData.pinned ? "◆  " : "") + entryRow.modelData.metadata
                         color: entryRow.selected ? root.selectedText : root.foreground
+                        opacity: 0.65
                         font.family: root.fontFamily
                         font.pixelSize: Style.font.caption
+                        elide: Text.ElideRight
                       }
-                    }
-                    Text {
-                      width: parent.width - x
-                      text: (entryRow.modelData.pinned ? "◆  " : "") + entryRow.modelData.metadata
-                      color: entryRow.selected ? root.selectedText : root.foreground
-                      opacity: 0.65
-                      font.family: root.fontFamily
-                      font.pixelSize: Style.font.caption
-                      elide: Text.ElideRight
                     }
                   }
                 }

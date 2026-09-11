@@ -83,13 +83,13 @@ class SafeIOTests(unittest.TestCase):
         self.assertFalse((self.state / 'new.json').exists())
 
     def test_entry_limit_rejects_read_and_transform(self):
-        self.history.write_text(json.dumps(["x"] * 301))
+        self.history.write_text(json.dumps(["x"] * (storage.MAX_ENTRIES + 1)))
         with self.assertRaises(ValueError):
             storage.read(self.history, [])
-        self.history.write_text(json.dumps(["x"] * 300))
+        self.history.write_text(json.dumps(["x"] * storage.MAX_ENTRIES))
         with self.assertRaises(ValueError):
             storage.update(self.history, lambda values: values + ["y"])
-        self.assertEqual(len(json.loads(self.history.read_text())), 300)
+        self.assertEqual(len(json.loads(self.history.read_text())), storage.MAX_ENTRIES)
 
     def test_output_byte_limit(self):
         with self.assertRaises(ValueError):
@@ -112,10 +112,10 @@ class SafeIOTests(unittest.TestCase):
         pins.write_text('[1]')
         with self.assertRaises(ValueError):
             storage.dump(self.state)
-        pins.write_text(json.dumps(['text:' + str(i) for i in range(300)]))
+        pins.write_text(json.dumps(['text:' + str(i) for i in range(storage.MAX_ENTRIES)]))
         with self.assertRaises(ValueError):
             storage.mutate(self.state, 'pin', {'identity': 'text:new'})
-        self.assertEqual(len(json.loads(pins.read_text())), 300)
+        self.assertEqual(len(json.loads(pins.read_text())), storage.MAX_ENTRIES)
 
     def test_stdin_cap(self):
         with self.assertRaises(ValueError):
