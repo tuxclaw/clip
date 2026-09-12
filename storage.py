@@ -1,7 +1,14 @@
+import importlib.util
 import json
 from pathlib import Path
 import sys
-from safe_io import atomic_write, read_bytes
+
+# -I excludes the script directory from sys.path. Load only our bundled helper,
+# without adding cwd, PYTHONPATH, or user site directories to the import path.
+_spec = importlib.util.spec_from_file_location("clip_safe_io", Path(__file__).resolve().with_name("safe_io.py"))
+_safe_io = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_safe_io)
+atomic_write, read_bytes = _safe_io.atomic_write, _safe_io.read_bytes
 
 MAX_BYTES = 2 * 1024 * 1024
 MAX_ENTRIES = 500
@@ -71,6 +78,13 @@ def read_payload(stream):
     return json.loads(raw)
 
 
+def dump_bytes(state):
+    data = (json.dumps(dump(state), ensure_ascii=False) + "\n").encode("utf-8")
+    if len(data) > MAX_BYTES:
+        raise ValueError("Output exceeds byte limit")
+    return data
+
+
 def mutate(state, operation, payload):
     if operation == "pin":
         identity = payload["identity"]
@@ -97,9 +111,9 @@ if __name__ == "__main__":
     try:
         state = Path.home() / ".local/state/omarchy"
         if sys.argv[1] == "dump":
-            print(json.dumps(dump(state), ensure_ascii=False))
+            sys.stdout.buffer.write(dump_bytes(state))
         else:
             mutate(state, sys.argv[1], read_payload(sys.stdin.buffer))
     except Exception as error:
-        print("Clip storage failed: " + str(error), file=sys.stderr)
+        print("Clip storage failed: " + str(error)[:4096], file=sys.stderr)
         sys.exit(1)

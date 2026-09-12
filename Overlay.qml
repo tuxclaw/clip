@@ -90,9 +90,11 @@ Item {
   }
   function save(operation, payload) {
     if (storage.running || (operation === "pin" ? pinsError : historyError)) return
+    var command = storageCommand(operation)
+    if (!command.length) return
     errorMessage = ""
     pendingPayload = JSON.stringify(payload)
-    storage.command = ["python3", decodeURIComponent(Qt.resolvedUrl("storage.py").toString().substring(7)), operation]
+    storage.command = command
     storage.running = true
   }
   function pin() { if (activeRow) save("pin", {identity: activeRow.identity}) }
@@ -104,9 +106,31 @@ Item {
     confirmation.opened = true
   }
 
+  function storageCommand(operation) {
+    try {
+      var url = Qt.resolvedUrl("storage.py").toString()
+      var storagePy = decodeURIComponent(url.substring(7))
+      if (url.indexOf("file://") !== 0 || storagePy.indexOf("/") !== 0 ||
+          !storagePy.endsWith("/storage.py") || storagePy.indexOf("..") !== -1)
+        throw new Error("Invalid storage.py path")
+      // Leave a second after timeout's group SIGKILL before the QML fallback.
+      return ["/usr/bin/timeout", "--kill-after=1s", "2s", "/usr/bin/python3", "-I", storagePy, operation]
+    } catch (error) {
+      errorMessage = "Could not launch clipboard storage: " + String(error)
+      return []
+    }
+  }
+  function stopStorageProcess(process) {
+    if (!process.running) return
+    process.running = false
+    if (typeof process.signal === "function") process.signal(9) // SIGKILL
+  }
   function reloadState() {
     if (stateDump.running || storage.running) { reloadPending = true; return }
     reloadPending = false
+    var command = storageCommand("dump")
+    if (!command.length) return
+    stateDump.command = command
     stateDump.running = true
   }
   Timer {
@@ -117,9 +141,12 @@ Item {
   }
   Process {
     id: stateDump
-    command: ["python3", decodeURIComponent(Qt.resolvedUrl("storage.py").toString().substring(7)), "dump"]
-    stdout: StdioCollector { id: stateOutput }
-    stderr: StdioCollector { id: stateErrors }
+    clearEnvironment: true
+    environment: ({ HOME: Quickshell.env("HOME"), PATH: "/usr/bin:/bin", LC_ALL: "C" })
+    workingDirectory: "/"
+    // Collectors finish/reset each stream; storage.py bounds output per run.
+    stdout: StdioCollector { id: stateOutput; waitForEnd: true }
+    stderr: StdioCollector { id: stateErrors; waitForEnd: true }
     onExited: function(code) {
       try {
         if (code !== 0) throw new Error(stateErrors.text.trim() || "Could not read clipboard state")
@@ -140,13 +167,28 @@ Item {
   }
   Process {
     id: storage
+    clearEnvironment: true
+    environment: ({ HOME: Quickshell.env("HOME"), PATH: "/usr/bin:/bin", LC_ALL: "C" })
+    workingDirectory: "/"
     stdinEnabled: true
     onStarted: { write(root.pendingPayload + "\n") }
-    stderr: StdioCollector { id: storageErrors }
+    stderr: StdioCollector { id: storageErrors; waitForEnd: true }
     onExited: function(code) {
       if (code !== 0) root.errorMessage = storageErrors.text.trim() || "Could not save changes"
       Qt.callLater(root.reloadState)
     }
+  }
+  Timer {
+    interval: 4000
+    repeat: false
+    running: stateDump.running
+    onTriggered: root.stopStorageProcess(stateDump)
+  }
+  Timer {
+    interval: 4000
+    repeat: false
+    running: storage.running
+    onTriggered: root.stopStorageProcess(storage)
   }
   PointerMoveGate { id: pointerGate; referenceItem: card }
 
